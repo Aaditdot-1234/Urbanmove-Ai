@@ -1,0 +1,581 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum Platform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum OtpPurpose {
+  PHONE_VERIFICATION
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  LOGIN
+}
+
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum RideStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum TransactionType {
+  BOOKING_PAYMENT
+  REFUND
+  WALLET_TOPUP
+  WITHDRAWAL
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentGateway {
+  RAZORPAY
+  STRIPE
+  CASH
+  WALLET
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FLAT
+}
+
+enum ReviewType {
+  RIDER_TO_DRIVER
+  DRIVER_TO_RIDER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  RIDE_STARTED
+  RIDE_COMPLETED
+  RIDE_CANCELLED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  NEW_MESSAGE
+  DRIVER_VERIFIED
+  REVIEW_RECEIVED
+  SOS_TRIGGERED
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum RecurringFrequency {
+  DAILY
+  WEEKLY
+  WEEKDAYS
+}
+
+// ─── Auth & Session ───────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @db.ObjectId
+  token     String   @unique
+  deviceId  String?
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model OtpVerification {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  user      User       @relation(fields: [userId], references: [id])
+  userId    String     @db.ObjectId
+  code      String
+  purpose   OtpPurpose
+  attempts  Int        @default(0)
+  isUsed    Boolean    @default(false)
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+}
+
+model PasswordResetToken {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String    @db.ObjectId
+  token     String    @unique
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+}
+
+model DeviceToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @db.ObjectId
+  fcmToken  String   @unique
+  platform  Platform
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  email          String    @unique
+  phone          String    @unique
+  password       String
+  city           String
+  profilePicture String?
+  bio            String?
+  gender         Gender?
+  dateOfBirth    DateTime?
+
+  isActive Boolean @default(true)
+  isBanned Boolean @default(false)
+
+  isEmailVerified Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
+  lastLoginAt     DateTime?
+
+  averageRating Float @default(0)
+  totalRides    Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auth
+  refreshTokens    RefreshToken[]
+  otpVerifications OtpVerification[]
+  passwordResets   PasswordResetToken[]
+  deviceTokens     DeviceToken[]
+
+  // Profile
+  driverProfile     DriverProfile?
+  wallet            Wallet?
+  emergencyContacts EmergencyContact[]
+
+  // Rides & Bookings
+  rideBookings  RideBooking[] @relation("RiderBookings")
+  ridesAsDriver Ride[]        @relation("DriverRelation")
+
+  // Social
+  reviewsGiven    Review[]                  @relation("ReviewsGiven")
+  reviewsReceived Review[]                  @relation("ReviewsReceived")
+  conversations   ConversationParticipant[]
+  sentMessages    Message[]
+
+  // Finance
+  transactions Transaction[]
+  couponUsages CouponUsage[]
+
+  // Safety & Admin
+  notifications  Notification[]
+  sosAlerts      SosAlert[]
+  reportsFiled   Report[]       @relation("ReportsFiled")
+  reportsAgainst Report[]       @relation("ReportsAgainst")
+  bans           Ban[]
+  auditLogs      AuditLog[]
+}
+
+// ─── Driver & Vehicle ─────────────────────────────────────────────────────────
+
+model DriverProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique @db.ObjectId
+
+  licenseNumber String
+  licenseImage  String
+  aadhaarNumber String?
+  aadhaarImage  String?
+
+  verificationStatus    VerificationStatus  @default(PENDING)
+  backgroundCheckStatus VerificationStatus?
+  isVerified            Boolean             @default(false)
+  verifiedAt            DateTime?
+  rejectionReason       String?
+
+  isAvailable   Boolean @default(false)
+  totalEarnings Float   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rides    Ride[]
+  vehicles Vehicle[]
+}
+
+model Vehicle {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  driverProfile   DriverProfile @relation(fields: [driverProfileId], references: [id])
+  driverProfileId String        @db.ObjectId
+
+  vehicleNumber String
+  vehicleImage  String
+  model         String
+  color         String
+  capacity      Int
+  year          Int
+
+  rcCopy          String
+  rcExpiry        DateTime
+  insuranceCopy   String
+  insuranceExpiry DateTime
+  pucCopy         String?
+  pucExpiry       DateTime?
+
+  isActive  Boolean @default(true)
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rides Ride[]
+}
+
+// ─── Rides ────────────────────────────────────────────────────────────────────
+
+model Ride {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  driverProfile   DriverProfile @relation(fields: [driverProfileId], references: [id])
+  driverProfileId String        @db.ObjectId
+  driver          User          @relation("DriverRelation", fields: [driverId], references: [id])
+  driverId        String        @db.ObjectId
+  vehicle         Vehicle       @relation(fields: [vehicleId], references: [id])
+  vehicleId       String        @db.ObjectId
+
+  source         String
+  sourceLat      Float
+  sourceLng      Float
+  destination    String
+  destinationLat Float
+  destinationLng Float
+
+  departureAt           DateTime
+  distanceKm            Float?
+  estimatedDurationMins Int?
+
+  totalSeats   Int
+  seatsBooked  Int   @default(0)
+  pricePerSeat Float
+
+  rideStatus         RideStatus @default(SCHEDULED)
+  cancellationReason String?
+  cancelledAt        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+
+  acAvailable    Boolean @default(false)
+  petsAllowed    Boolean @default(false)
+  smokingAllowed Boolean @default(false)
+  musicAllowed   Boolean @default(true)
+  notes          String?
+
+  isRecurring Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rideBookings  RideBooking[]
+  waypoints     RideWayPoint[]
+  recurringRide RecurringRide?
+  liveLocations LiveLocation[]
+  sosAlerts     SosAlert[]
+  conversations Conversation[]
+}
+
+model RideWayPoint {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  ride   Ride   @relation(fields: [rideId], references: [id])
+  rideId String @db.ObjectId
+  label  String
+  lat    Float
+  lng    Float
+  order  Int
+}
+
+model RecurringRide {
+  id         String             @id @default(auto()) @map("_id") @db.ObjectId
+  ride       Ride               @relation(fields: [rideId], references: [id])
+  rideId     String             @unique @db.ObjectId
+  frequency  RecurringFrequency
+  daysOfWeek Int[]
+  startDate  DateTime
+  endDate    DateTime?
+  createdAt  DateTime           @default(now())
+}
+
+// ─── Bookings ─────────────────────────────────────────────────────────────────
+
+model RideBooking {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  ride    Ride   @relation(fields: [rideId], references: [id])
+  rideId  String @db.ObjectId
+  rider   User   @relation("RiderBookings", fields: [riderId], references: [id])
+  riderId String @db.ObjectId
+
+  seatsBooked   Int     @default(1)
+  totalAmount   Float
+  pickupLat     Float?
+  pickupLng     Float?
+  pickupAddress String?
+  dropLat       Float?
+  dropLng       Float?
+  dropAddress   String?
+
+  bookingStatus      BookingStatus @default(PENDING)
+  paymentStatus      PaymentStatus @default(PENDING)
+  cancellationReason String?
+  cancelledAt        DateTime?
+
+  bookingTime DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transaction Transaction?
+  review      Review?
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+model Wallet {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @unique @db.ObjectId
+  balance   Float    @default(0)
+  currency  String   @default("INR")
+  updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  user      User         @relation(fields: [userId], references: [id])
+  userId    String       @db.ObjectId
+  booking   RideBooking? @relation(fields: [bookingId], references: [id])
+  bookingId String?      @unique @db.ObjectId
+
+  amount          Float
+  currency        String            @default("INR")
+  type            TransactionType
+  status          TransactionStatus @default(PENDING)
+  gateway         PaymentGateway
+  gatewayTxnId    String?
+  gatewayResponse Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Coupon {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  code          String       @unique
+  description   String?
+  discountType  DiscountType
+  discountValue Float
+  maxUses       Int?
+  usedCount     Int          @default(0)
+  minRideAmount Float?
+  expiresAt     DateTime?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  usages CouponUsage[]
+}
+
+model CouponUsage {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  coupon   Coupon   @relation(fields: [couponId], references: [id])
+  couponId String   @db.ObjectId
+  user     User     @relation(fields: [userId], references: [id])
+  userId   String   @db.ObjectId
+  usedAt   DateTime @default(now())
+}
+
+// ─── Reviews ──────────────────────────────────────────────────────────────────
+
+model Review {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  booking    RideBooking @relation(fields: [bookingId], references: [id])
+  bookingId  String      @unique @db.ObjectId
+  reviewer   User        @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  reviewerId String      @db.ObjectId
+  reviewee   User        @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+  revieweeId String      @db.ObjectId
+  rating     Int
+  comment    String?
+  type       ReviewType
+  createdAt  DateTime    @default(now())
+}
+
+// ─── Chat / Messaging ─────────────────────────────────────────────────────────
+
+model Conversation {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  ride          Ride?     @relation(fields: [rideId], references: [id])
+  rideId        String?   @db.ObjectId
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String       @db.ObjectId
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String       @db.ObjectId
+  joinedAt       DateTime     @default(now())
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String       @db.ObjectId
+  sender         User         @relation(fields: [senderId], references: [id])
+  senderId       String       @db.ObjectId
+  content        String
+  type           MessageType  @default(TEXT)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+}
+
+// ─── Safety ───────────────────────────────────────────────────────────────────
+
+model EmergencyContact {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id])
+  userId       String   @db.ObjectId
+  name         String
+  phone        String
+  relationship String
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model SosAlert {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  user       User      @relation(fields: [userId], references: [id])
+  userId     String    @db.ObjectId
+  ride       Ride?     @relation(fields: [rideId], references: [id])
+  rideId     String?   @db.ObjectId
+  lat        Float?
+  lng        Float?
+  message    String?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model LiveLocation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  ride      Ride     @relation(fields: [rideId], references: [id])
+  rideId    String   @db.ObjectId
+  userId    String   @db.ObjectId
+  lat       Float
+  lng       Float
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  user              User             @relation(fields: [userId], references: [id])
+  userId            String           @db.ObjectId
+  title             String
+  message           String
+  type              NotificationType
+  relatedEntityId   String?          @db.ObjectId
+  relatedEntityType String?
+  readStatus        Boolean          @default(false)
+  readAt            DateTime?
+  createdAt         DateTime         @default(now())
+}
+
+// ─── Admin / Trust & Safety ───────────────────────────────────────────────────
+
+model Report {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  reporter       User         @relation("ReportsFiled", fields: [reporterId], references: [id])
+  reporterId     String       @db.ObjectId
+  reportedUser   User         @relation("ReportsAgainst", fields: [reportedUserId], references: [id])
+  reportedUserId String       @db.ObjectId
+  rideId         String?      @db.ObjectId
+  reason         String
+  details        String?
+  status         ReportStatus @default(OPEN)
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+}
+
+model Ban {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String    @db.ObjectId
+  reason      String
+  bannedById  String    @db.ObjectId
+  bannedUntil DateTime?
+  isPermanent Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  actor      User     @relation(fields: [actorId], references: [id])
+  actorId    String   @db.ObjectId
+  action     String
+  entityType String
+  entityId   String?  @db.ObjectId
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}

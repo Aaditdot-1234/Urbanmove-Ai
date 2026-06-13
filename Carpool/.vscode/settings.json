@@ -3,5 +3,8 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "prisma.schemaPath": "prisma/schema.prisma",
+  "prisma.enableCodeLens": false,
+  "prisma.pinToPrisma6": false
 }
