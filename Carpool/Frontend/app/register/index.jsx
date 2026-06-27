@@ -46,6 +46,7 @@ const Register = () => {
                                                 <TextInput
                                                     placeholder="Your name"
                                                     placeholderTextColor="#64748b"
+                                                    style={{ fontSize: 12 }}
                                                     className="flex-1 text-white text-base outline-none"
                                                     autoCapitalize="words"
                                                     value={formData.name}
@@ -69,6 +70,9 @@ const Register = () => {
                                                     <TextInput
                                                         placeholder="you@example.com"
                                                         placeholderTextColor="#64748b"
+                                                        style= {{
+                                                            fontSize: 12
+                                                        }}
                                                         className="flex-1 text-white text-base outline-none"
                                                         keyboardType="email-address"
                                                         autoCapitalize="none"
@@ -94,6 +98,9 @@ const Register = () => {
                                                     <TextInput
                                                         placeholder="+1 234 567 8900"
                                                         placeholderTextColor="#64748b"
+                                                        style={{
+                                                            fontSize: 12
+                                                        }}
                                                         className="flex-1 text-white text-base outline-none"
                                                         keyboardType="phone-pad"
                                                         value={formData.phone}
@@ -118,6 +125,7 @@ const Register = () => {
                                                     <TextInput
                                                         placeholder="Your city"
                                                         placeholderTextColor="#64748b"
+                                                        style={{ fontSize: 12 }}
                                                         className="flex-1 text-white text-base outline-none"
                                                         autoCapitalize="words"
                                                         value={formData.city}
